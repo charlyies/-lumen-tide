@@ -8,11 +8,13 @@ export const FIELD = { width: 1280, height: 720 };
 export const STEP = 1 / 60;
 
 export const PLAYER = {
-  radius: 26,
+  radius: 30,
   speed: 460,
   invulnerable: 1.6,
   /** Mouse-follow steering: how fast the jelly chases the pointer. */
   mouseChase: 9,
+  /** Seconds between lumen-trail motes shed while swimming. */
+  trailInterval: 0.055,
 };
 
 export const LIVES = 3;
@@ -25,14 +27,17 @@ export const ORB = {
   /** Drift speed of a fresh orb (it bobs and slowly sinks). */
   speed: 46,
   speedPerLevel: 4,
-  interval: 0.85,
+  interval: 0.68,
   intervalScale: 0.92,
-  minInterval: 0.34,
+  minInterval: 0.3,
   /** Base points; multiplied by the combo. */
   points: 10,
   /** Golden orbs are rare and worth much more. */
-  goldChance: 0.08,
+  goldChance: 0.1,
   goldPoints: 50,
+  /** Pink prism orbs sit between the two: uncommon, worth 25. */
+  pinkChance: 0.13,
+  pinkPoints: 25,
 };
 
 export const EEL = {
@@ -58,6 +63,22 @@ export const INK = {
   minInterval: 2.2,
 };
 
+/** Dart eels: small, fast, straight hunters that appear from level 2. Unlike the
+ *  sine-swimming void eels they cross the field in a near-straight line, so the
+ *  player has to watch the horizon, not just the waves. */
+export const DART = {
+  segments: 4,
+  headRadius: 11,
+  speed: 320,
+  speedPerLevel: 22,
+  /** Seconds between dart spawns once they unlock. */
+  interval: 6.5,
+  intervalScale: 0.93,
+  minInterval: 3.4,
+  /** First level at which darts appear. */
+  unlockLevel: 2,
+};
+
 /** Power-ups: shield, magnet, starburst. */
 export const POWERUP = {
   radius: 16,
@@ -71,9 +92,13 @@ export const POWERUP = {
 export const LEVEL = { orbsPerLevel: 15, max: 12 };
 
 /** How many entities can exist at once; pools are allocated once, at boot. */
-export const POOL_SIZE = 96;
+export const POOL_SIZE = 128;
 /** Ambient bubbles and drifting motes for the backdrop. */
-export const AMBIENT_COUNT = 42;
+export const AMBIENT_COUNT = 96;
+/** Burst particles on collection, plus the jelly's lumen trail. */
+export const PARTICLE_COUNT = 168;
+/** Floating score popups ("+20", "GOLD +250", "LEVEL 3"). */
+export const POPUP_COUNT = 24;
 
 export const PALETTE = {
   backdrop: '#04101f',
@@ -87,6 +112,8 @@ export const PALETTE = {
   orb: '#ffd166',
   orbGold: '#ff9f1c',
   orbPink: '#ff6fb5',
+  dart: '#ff2e63',
+  dartGlow: '#ff7a9e',
   eel: '#1a1030',
   eelEye: '#ff4d6d',
   ink: '#3b2a5e',

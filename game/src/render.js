@@ -3,8 +3,9 @@
 // colour. Canvas gradients, glow (shadowBlur) and layered shapes paint a bioluminescent
 // deep sea: light rays from the surface, drifting bubbles, a pulsing jellyfish with
 // trailing tentacles, glowing orbs, serpentine void eels and ink clouds.
-import { EEL, FIELD, FONT, LIVES, PALETTE } from './config.js';
-import { KIND_EEL, KIND_INK, KIND_MAGNET, KIND_ORB, KIND_SHIELD, KIND_STAR } from './world.js';
+import { COMBO, DART, EEL, FIELD, FONT, LIVES, PALETTE } from './config.js';
+import { KIND_DART, KIND_EEL, KIND_INK, KIND_MAGNET, KIND_ORB, KIND_SHIELD, KIND_STAR } from './world.js';
+import { drawScenery } from './scenery.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -61,53 +62,8 @@ export function createRenderer(canvas) {
     context.fillText(value, x, y);
   }
 
-  function drawBackdrop(state) {
-    if (bgGradient === null) {
-      bgGradient = context.createLinearGradient(0, 0, 0, FIELD.height);
-      bgGradient.addColorStop(0, PALETTE.shallow);
-      bgGradient.addColorStop(0.45, PALETTE.mid);
-      bgGradient.addColorStop(1, PALETTE.deep);
-    }
-    context.fillStyle = bgGradient;
-    context.fillRect(0, 0, FIELD.width, FIELD.height);
-
-    // Light rays from the surface, slowly swaying.
-    context.save();
-    context.globalAlpha = 1;
-    for (let i = 0; i < 5; i += 1) {
-      const sway = Math.sin(state.elapsed * 0.22 + i * 1.7) * 46;
-      const topX = 150 + i * 260 + sway;
-      context.fillStyle = PALETTE.ray;
-      context.beginPath();
-      context.moveTo(topX, 0);
-      context.lineTo(topX + 90, 0);
-      context.lineTo(topX + 260, FIELD.height);
-      context.lineTo(topX + 60, FIELD.height);
-      context.closePath();
-      context.fill();
-    }
-    context.restore();
-
-    // Ambient bubbles and motes.
-    for (const a of state.ambient) {
-      context.globalAlpha = a.alpha;
-      context.fillStyle = '#bfe9ff';
-      context.beginPath();
-      context.arc(a.x, a.y, a.r, 0, Math.PI * 2);
-      context.fill();
-    }
-    context.globalAlpha = 1;
-
-    // Sandy floor glow at the bottom.
-    const floor = context.createLinearGradient(0, FIELD.height - 60, 0, FIELD.height);
-    floor.addColorStop(0, 'rgba(20, 90, 120, 0)');
-    floor.addColorStop(1, 'rgba(24, 110, 140, 0.35)');
-    context.fillStyle = floor;
-    context.fillRect(0, FIELD.height - 60, FIELD.width, 60);
-  }
-
   function drawOrb(item) {
-    const glow = item.gold ? PALETTE.orbGold : PALETTE.orb;
+    const glow = item.gold ? PALETTE.orbGold : item.pink ? PALETTE.orbPink : PALETTE.orb;
     const pulse = 1 + Math.sin(item.t * 4 + item.phase) * 0.12;
     const r = item.radius * pulse;
     context.save();
@@ -122,13 +78,46 @@ export function createRenderer(canvas) {
     context.beginPath();
     context.arc(item.x - r * 0.25, item.y - r * 0.3, r * 0.38, 0, Math.PI * 2);
     context.fill();
-    if (item.gold) {
-      context.strokeStyle = 'rgba(255,255,255,0.9)';
+    if (item.gold || item.pink) {
+      context.strokeStyle = item.pink ? 'rgba(255,111,181,0.9)' : 'rgba(255,255,255,0.9)';
       context.lineWidth = 2;
       context.beginPath();
       context.arc(item.x, item.y, r + 6, 0, Math.PI * 2);
       context.stroke();
     }
+    context.restore();
+  }
+
+  function drawDart(item) {
+    const segs = item.segments;
+    context.save();
+    // Body: a fast pink streak, tapering tail segments.
+    for (let s = segs.length - 1; s >= 1; s -= 1) {
+      const taper = 1 - (s / segs.length) * 0.6;
+      context.fillStyle = s % 2 === 0 ? '#8f1140' : DART.glow;
+      context.beginPath();
+      context.arc(segs[s].x, segs[s].y, DART.headRadius * taper, 0, Math.PI * 2);
+      context.fill();
+    }
+    // Head with glow, fins and angry eyes.
+    context.shadowColor = DART.color;
+    context.shadowBlur = 18;
+    context.fillStyle = DART.color;
+    context.beginPath();
+    context.arc(item.x, item.y, DART.headRadius, 0, Math.PI * 2);
+    context.fill();
+    context.shadowBlur = 0;
+    const dir = Math.sign(item.speed) || 1;
+    context.fillStyle = '#fff';
+    context.beginPath();
+    context.arc(item.x + dir * 4, item.y - 4, 2.8, 0, Math.PI * 2);
+    context.arc(item.x + dir * 4, item.y + 4, 2.8, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = '#3d0218';
+    context.beginPath();
+    context.arc(item.x + dir * 5, item.y - 4, 1.4, 0, Math.PI * 2);
+    context.arc(item.x + dir * 5, item.y + 4, 1.4, 0, Math.PI * 2);
+    context.fill();
     context.restore();
   }
 
@@ -249,6 +238,14 @@ export function createRenderer(canvas) {
       context.stroke();
     }
     context.globalAlpha = 1;
+    // Halo: a soft glowing ring so the jellyfish reads at thumbnail size.
+    const halo = context.createRadialGradient(p.x, p.y, p.radius * 0.6, p.x, p.y, p.radius * 2.4);
+    halo.addColorStop(0, 'rgba(127, 240, 255, 0.22)');
+    halo.addColorStop(1, 'rgba(127, 240, 255, 0)');
+    context.fillStyle = halo;
+    context.beginPath();
+    context.arc(p.x, p.y, p.radius * 2.4, 0, Math.PI * 2);
+    context.fill();
     // Bell: glowing dome with a bright core.
     const squash = 1 + Math.sin(p.pulse) * 0.06;
     context.shadowColor = PALETTE.player;
@@ -317,21 +314,74 @@ export function createRenderer(canvas) {
     context.globalAlpha = 1;
   }
 
+  function drawPopups(state) {
+    context.save();
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    for (const popupItem of state.popups) {
+      if (!popupItem.active) continue;
+      const age = popupItem.maxLife - popupItem.life;
+      context.globalAlpha = Math.min(1, popupItem.life / (popupItem.maxLife * 0.5));
+      context.font = `700 ${popupItem.size}px ${FONT}`;
+      context.fillStyle = popupItem.color;
+      context.fillText(popupItem.text, popupItem.x, popupItem.y - age * 30);
+    }
+    context.restore();
+  }
+
+  function drawBanner(state) {
+    const banner = state.banner;
+    if (!banner || banner.timer <= 0) return;
+    const alpha = Math.min(1, banner.timer / 0.5);
+    context.save();
+    context.globalAlpha = alpha;
+    context.textAlign = 'center';
+    context.textBaseline = 'alphabetic';
+    context.font = `800 44px ${FONT}`;
+    context.fillStyle = '#e8fbff';
+    context.fillText(banner.text, FIELD.width / 2, 150);
+    context.font = `600 22px ${FONT}`;
+    context.fillStyle = PALETTE.muted;
+    context.fillText(banner.sub, FIELD.width / 2, 184);
+    context.restore();
+  }
+
+  function drawFlash(state) {
+    if (state.flash <= 0) return;
+    const edge = context.createRadialGradient(
+      FIELD.width / 2, FIELD.height / 2, FIELD.height * 0.32,
+      FIELD.width / 2, FIELD.height / 2, FIELD.height * 0.75,
+    );
+    edge.addColorStop(0, 'rgba(255, 46, 99, 0)');
+    edge.addColorStop(1, `rgba(255, 46, 99, ${0.45 * state.flash})`);
+    context.fillStyle = edge;
+    context.fillRect(0, 0, FIELD.width, FIELD.height);
+  }
+
   function drawField(state) {
-    drawBackdrop(state);
+    drawScenery(context, state);
     for (const item of state.items) {
       if (!item.active) continue;
       if (item.kind === KIND_ORB) drawOrb(item);
       else if (item.kind === KIND_EEL) drawEel(item);
+      else if (item.kind === KIND_DART) drawDart(item);
       else if (item.kind === KIND_INK) drawInk(item);
       else drawPowerup(item);
     }
     drawPlayer(state);
     drawParticles(state);
+    drawPopups(state);
+    drawBanner(state);
+    drawFlash(state);
   }
 
   function drawHud(state, best) {
     context.textBaseline = 'top';
+    // Frosted top bar so score, level and lives stay readable over busy water.
+    context.fillStyle = 'rgba(3, 18, 32, 0.45)';
+    context.beginPath();
+    context.roundRect(12, 10, FIELD.width - 24, 48, 12);
+    context.fill();
     text(scoreLabel(state.score), 26, 18, 30, PALETTE.text, 'left', '700');
     text(levelLabel(state.level), FIELD.width / 2, 18, 30, PALETTE.text, 'center', '700');
     // Combo badge.
@@ -345,6 +395,12 @@ export function createRenderer(canvas) {
       context.font = `700 24px ${FONT}`;
       context.textAlign = 'center';
       context.fillText(comboLabel(state.combo), 0, 0);
+      // Combo timer: the bar shrinks as the combo window runs out.
+      const frac = Math.max(0, state.comboTimer / COMBO.window);
+      context.fillStyle = 'rgba(255,255,255,0.25)';
+      context.fillRect(-40, 32, 80, 5);
+      context.fillStyle = state.combo >= 4 ? '#ff9f1c' : '#ffd166';
+      context.fillRect(-40, 32, 80 * frac, 5);
       context.restore();
     }
     // Lives as little jelly bells.
@@ -394,9 +450,9 @@ export function createRenderer(canvas) {
 
   const TITLE_LINES = [
     'You are a Lumen Jelly, glowing in the deep dark sea.',
-    'Catch the golden plankton orbs — chain them for combos up to x5.',
-    'Dodge the void eels and ink clouds. Three lives. Good luck.',
-    'Move with mouse, WASD or arrow keys.  Pause with P.',
+    'Catch plankton orbs — gold is 50, pink prisms are 25. Chain combos up to x5.',
+    'Dodge void eels, dart eels from Level 2, and ink clouds. Three lives.',
+    'Grab shields, magnets and starbursts. Move with mouse, WASD or arrows.',
     '',
   ];
   const PAUSED_LINES = ['The tide is waiting for you.'];

@@ -6,14 +6,17 @@
 import {
   AMBIENT_COUNT,
   COMBO,
+  DART,
   EEL,
   FIELD,
   INK,
   LEVEL,
   LIVES,
   ORB,
+  PARTICLE_COUNT,
   PLAYER,
   POOL_SIZE,
+  POPUP_COUNT,
   POWERUP,
 } from './config.js';
 
@@ -23,6 +26,7 @@ export const KIND_INK = 2;
 export const KIND_SHIELD = 3;
 export const KIND_MAGNET = 4;
 export const KIND_STAR = 5;
+export const KIND_DART = 6;
 
 export const EVENT_HIT = 1;
 export const EVENT_ORB = 2;
@@ -58,7 +62,7 @@ export function createWorld(random) {
   for (let index = 0; index < POOL_SIZE; index += 1) {
     items.push({
       active: false, kind: KIND_ORB, x: 0, y: 0, radius: 0, speed: 0,
-      phase: 0, gold: false, segments: null, baseX: 0, t: 0, drift: 0,
+      phase: 0, gold: false, pink: false, segments: null, baseX: 0, t: 0, drift: 0,
     });
   }
   // Ambient bubbles and motes: pure decoration, seeded once.
@@ -75,16 +79,28 @@ export function createWorld(random) {
   }
   // Burst particles on collection: {x, y, vx, vy, life, maxLife, color, size}.
   const particles = [];
-  for (let index = 0; index < 96; index += 1) {
+  for (let index = 0; index < PARTICLE_COUNT; index += 1) {
     particles.push({ active: false, x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 1, color: '#fff', size: 2 });
   }
+  // Floating score popups: {active, x, y, text, color, life, maxLife, size}.
+  const popups = [];
+  for (let index = 0; index < POPUP_COUNT; index += 1) {
+    popups.push({ active: false, x: 0, y: 0, text: '', color: '#fff', life: 0, maxLife: 1, size: 20 });
+  }
   const state = {
-    player, items, ambient, particles,
+    player, items, ambient, particles, popups,
     score: 0, lives: LIVES, level: 1,
     orbsCollected: 0, combo: 0, comboTimer: 0, bestCombo: 0,
     elapsed: 0, orbTimer: 0.4, eelTimer: 2.2, inkTimer: 5, powerTimer: POWERUP.interval,
+    dartTimer: DART.interval,
     /** Screen shake on a hit, decays to zero. */
     shake: 0,
+    /** Red edge flash on a hit, 1 to 0. */
+    flash: 0,
+    /** Centre-screen banner ("LEVEL 3", "FLAWLESS x10"): {text, sub, timer} or null. */
+    banner: null,
+    /** Countdown to the next lumen-trail mote. */
+    trailTimer: 0,
   };
 
   function reset() {
@@ -99,6 +115,7 @@ export function createWorld(random) {
     player.vy = 0;
     for (const item of items) item.active = false;
     for (const p of particles) p.active = false;
+    for (const p of popups) p.active = false;
     state.score = 0;
     state.lives = LIVES;
     state.level = 1;
@@ -111,7 +128,11 @@ export function createWorld(random) {
     state.eelTimer = 2.2;
     state.inkTimer = 5;
     state.powerTimer = POWERUP.interval;
+    state.dartTimer = DART.interval;
     state.shake = 0;
+    state.flash = 0;
+    state.banner = null;
+    state.trailTimer = 0;
   }
 
   function freeItem() {
@@ -122,6 +143,25 @@ export function createWorld(random) {
   function freeParticle() {
     for (let index = 0; index < particles.length; index += 1) if (!particles[index].active) return particles[index];
     return null;
+  }
+
+  function freePopup() {
+    for (let index = 0; index < popups.length; index += 1) if (!popups[index].active) return popups[index];
+    return null;
+  }
+
+  /** A floating score label that rises and fades over about a second. */
+  function popup(x, y, text, color, size) {
+    const p = freePopup();
+    if (p === null) return;
+    p.active = true;
+    p.x = x;
+    p.y = y;
+    p.text = text;
+    p.color = color;
+    p.size = size || 20;
+    p.maxLife = 1.1;
+    p.life = p.maxLife;
   }
 
   function burst(x, y, color, count, speed) {
@@ -147,8 +187,10 @@ export function createWorld(random) {
     if (item === null) return;
     item.active = true;
     item.kind = KIND_ORB;
-    item.gold = random() < ORB.goldChance;
-    item.radius = ORB.radius * (item.gold ? 1.25 : 1);
+    const roll = random();
+    item.gold = roll < ORB.goldChance;
+    item.pink = !item.gold && roll < ORB.goldChance + ORB.pinkChance;
+    item.radius = ORB.radius * (item.gold ? 1.25 : item.pink ? 1.1 : 1);
     item.x = 40 + random() * (FIELD.width - 80);
     item.y = -24;
     item.speed = ORB.speed + ORB.speedPerLevel * (state.level - 1) + random() * 24;
@@ -169,7 +211,7 @@ export function createWorld(random) {
     item.speed = (EEL.speed + EEL.speedPerLevel * (state.level - 1)) * (fromLeft ? 1 : -1);
     item.phase = random() * Math.PI * 2;
     item.t = 0;
-    if (item.segments === null) {
+    if (item.segments === null || item.segments.length !== EEL.segments) {
       item.segments = [];
       for (let s = 0; s < EEL.segments; s += 1) item.segments.push({ x: item.x, y: item.y });
     }
@@ -191,6 +233,31 @@ export function createWorld(random) {
     item.phase = random() * Math.PI * 2;
     item.drift = 18 + random() * 22;
     item.t = 0;
+  }
+
+  /** A dart eel: small, fast, near-straight, from level 2 up. */
+  function spawnDart() {
+    const item = freeItem();
+    if (item === null) return;
+    const fromLeft = random() < 0.5;
+    item.active = true;
+    item.kind = KIND_DART;
+    item.gold = false;
+    item.pink = false;
+    item.x = fromLeft ? -50 : FIELD.width + 50;
+    item.y = 70 + random() * (FIELD.height - 140);
+    item.baseX = item.x;
+    item.speed = (DART.speed + DART.speedPerLevel * (state.level - 1)) * (fromLeft ? 1 : -1);
+    item.phase = random() * Math.PI * 2;
+    item.t = 0;
+    if (item.segments === null || item.segments.length !== DART.segments) {
+      item.segments = [];
+      for (let s = 0; s < DART.segments; s += 1) item.segments.push({ x: item.x, y: item.y });
+    }
+    for (let s = 0; s < DART.segments; s += 1) {
+      item.segments[s].x = item.x - Math.sign(item.speed) * s * 13;
+      item.segments[s].y = item.y;
+    }
   }
 
   function spawnPowerup() {
@@ -219,6 +286,10 @@ export function createWorld(random) {
     return Math.max(INK.minInterval, INK.interval * INK.intervalScale ** (state.level - 1));
   }
 
+  function dartInterval() {
+    return Math.max(DART.minInterval, DART.interval * DART.intervalScale ** (state.level - 1));
+  }
+
   function takeHit() {
     if (player.shield > 0) {
       player.shield -= 1;
@@ -231,6 +302,7 @@ export function createWorld(random) {
     state.combo = 0;
     state.comboTimer = 0;
     state.shake = 10;
+    state.flash = 1;
     burst(player.x, player.y, '#ff5d73', 20, 240);
     return state.lives <= 0;
   }
@@ -246,6 +318,7 @@ export function createWorld(random) {
     const newLevel = Math.min(LEVEL.max, 1 + Math.floor(state.orbsCollected / LEVEL.orbsPerLevel));
     if (newLevel !== state.level) {
       state.level = newLevel;
+      state.banner = { text: `LEVEL ${newLevel}`, sub: 'The tide quickens', timer: 1.8 };
       events |= EVENT_LEVEL;
     }
 
@@ -254,6 +327,30 @@ export function createWorld(random) {
     if (player.invulnerable > 0) player.invulnerable = Math.max(0, player.invulnerable - dt);
     if (player.magnet > 0) player.magnet = Math.max(0, player.magnet - dt);
     if (state.shake > 0) state.shake = Math.max(0, state.shake - dt * 26);
+    if (state.flash > 0) state.flash = Math.max(0, state.flash - dt * 2.2);
+    if (state.banner !== null) {
+      state.banner.timer -= dt;
+      if (state.banner.timer <= 0) state.banner = null;
+    }
+    // Lumen trail: the jelly sheds glowing motes as it swims.
+    if (!harmless) {
+      state.trailTimer -= dt;
+      if (state.trailTimer <= 0) {
+        state.trailTimer += PLAYER.trailInterval;
+        const p = freeParticle();
+        if (p !== null) {
+          p.active = true;
+          p.x = player.x + (random() - 0.5) * 20;
+          p.y = player.y + 14 + (random() - 0.5) * 10;
+          p.vx = -player.vx * 0.08;
+          p.vy = 26;
+          p.maxLife = 0.7;
+          p.life = p.maxLife;
+          p.color = '#7ef0ff';
+          p.size = 2.5;
+        }
+      }
+    }
     if (state.comboTimer > 0) {
       state.comboTimer -= dt;
       if (state.comboTimer <= 0) state.combo = 0;
@@ -305,6 +402,13 @@ export function createWorld(random) {
       spawnPowerup();
       state.powerTimer += POWERUP.interval;
     }
+    if (state.level >= DART.unlockLevel) {
+      state.dartTimer -= dt;
+      if (state.dartTimer <= 0) {
+        spawnDart();
+        state.dartTimer += dartInterval();
+      }
+    }
 
     // --- ambient drift ---
     for (const a of ambient) {
@@ -329,6 +433,17 @@ export function createWorld(random) {
       p.y += p.vy * dt;
       p.vx *= 0.96;
       p.vy *= 0.96;
+    }
+
+    // --- popups ---
+    for (const p of popups) {
+      if (!p.active) continue;
+      p.life -= dt;
+      if (p.life <= 0) {
+        p.active = false;
+        continue;
+      }
+      p.y -= 34 * dt;
     }
 
     // --- items ---
@@ -360,9 +475,12 @@ export function createWorld(random) {
           state.combo = Math.min(COMBO.max, state.combo + 1);
           state.comboTimer = COMBO.window;
           if (state.combo > state.bestCombo) state.bestCombo = state.combo;
-          const gained = (item.gold ? ORB.goldPoints : ORB.points) * state.combo;
+          const base = item.gold ? ORB.goldPoints : item.pink ? ORB.pinkPoints : ORB.points;
+          const gained = base * state.combo;
           state.score += gained;
-          burst(item.x, item.y, item.gold ? '#ff9f1c' : '#ffd166', item.gold ? 18 : 10, 200);
+          const color = item.gold ? '#ff9f1c' : item.pink ? '#ff6fb5' : '#ffd166';
+          popup(item.x, item.y - 10, item.gold ? `GOLD +${gained}` : `+${gained}`, color, item.gold ? 26 : 20);
+          burst(item.x, item.y, item.gold ? '#ff9f1c' : item.pink ? '#ff6fb5' : '#ffd166', item.gold ? 18 : 10, 200);
           events |= item.gold ? EVENT_GOLD : EVENT_ORB;
         }
       } else if (item.kind === KIND_EEL) {
@@ -383,6 +501,31 @@ export function createWorld(random) {
         }
         if (harmless || player.invulnerable > 0) continue;
         if (circleHit(item.x, item.y, EEL.headRadius, player.x, player.y, player.radius * 0.85)) {
+          item.active = false;
+          events |= EVENT_HIT;
+          if (takeHit()) {
+            events |= EVENT_OVER;
+            break;
+          }
+        }
+      } else if (item.kind === KIND_DART) {
+        // Dart eels cross in a near-straight line, fast, with only a faint weave.
+        const prevX = item.x;
+        item.x += item.speed * dt;
+        item.y += Math.sin(item.t * 3.2 + item.phase) * 14 * dt;
+        const segs = item.segments;
+        segs[0].x = prevX;
+        segs[0].y = item.y;
+        for (let s = 1; s < segs.length; s += 1) {
+          segs[s].x += (segs[s - 1].x - segs[s].x) * 0.6;
+          segs[s].y += (segs[s - 1].y - segs[s].y) * 0.6;
+        }
+        if (item.x < -120 || item.x > FIELD.width + 120) {
+          item.active = false;
+          continue;
+        }
+        if (harmless || player.invulnerable > 0) continue;
+        if (circleHit(item.x, item.y, DART.headRadius, player.x, player.y, player.radius * 0.85)) {
           item.active = false;
           events |= EVENT_HIT;
           if (takeHit()) {
@@ -419,19 +562,22 @@ export function createWorld(random) {
           item.active = false;
           if (item.kind === KIND_SHIELD) {
             player.shield = POWERUP.shieldHits;
+            popup(item.x, item.y - 12, 'SHIELD!', '#8affc1', 22);
             burst(item.x, item.y, '#8affc1', 14, 190);
           } else if (item.kind === KIND_MAGNET) {
             player.magnet = POWERUP.magnetSeconds;
+            popup(item.x, item.y - 12, 'MAGNET!', '#c084fc', 22);
             burst(item.x, item.y, '#c084fc', 14, 190);
           } else {
             // Starburst: clear every eel and ink cloud on screen.
             for (const other of items) {
-              if (other.active && (other.kind === KIND_EEL || other.kind === KIND_INK)) {
+              if (other.active && (other.kind === KIND_EEL || other.kind === KIND_INK || other.kind === KIND_DART)) {
                 burst(other.x, other.y, '#ffe66d', 8, 160);
                 other.active = false;
               }
             }
             state.score += 25;
+            popup(item.x, item.y - 12, 'STARBURST! +25', '#ffe66d', 24);
             burst(item.x, item.y, '#ffe66d', 22, 260);
           }
           events |= EVENT_POWERUP;

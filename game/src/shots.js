@@ -3,11 +3,12 @@
 // nearest orb while steering clear of eels and ink, so the frame is what a short game
 // really looks like and the same seed always gives the same frame.
 import { FIELD, STEP } from './config.js';
-import { EVENT_OVER, KIND_EEL, KIND_INK, KIND_ORB } from './world.js';
+import { EVENT_OVER, KIND_DART, KIND_EEL, KIND_INK, KIND_ORB } from './world.js';
 import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
 
 const START_SECONDS = 4;
 const PLAY_SECONDS = 24;
+const PLAY2_SECONDS = 48;
 const END_LIMIT_SECONDS = 600;
 const SAMPLE = 1 / 30;
 
@@ -21,9 +22,9 @@ function scoreMove(state, dx, dy) {
     if (!item.active) continue;
     const d = Math.hypot(item.x - nx, item.y - ny);
     if (item.kind === KIND_ORB) {
-      score += Math.max(0, 420 - d) * (item.gold ? 2 : 1);
-    } else if (item.kind === KIND_EEL || item.kind === KIND_INK) {
-      const danger = item.kind === KIND_EEL ? 150 : 110;
+      score += Math.max(0, 420 - d) * (item.gold ? 2 : item.pink ? 1.5 : 1);
+    } else if (item.kind === KIND_EEL || item.kind === KIND_INK || item.kind === KIND_DART) {
+      const danger = item.kind === KIND_EEL ? 150 : item.kind === KIND_DART ? 130 : 110;
       if (d < danger) score -= (danger - d) * 14;
     } else {
       score += Math.max(0, 300 - d) * 0.6;
@@ -61,11 +62,11 @@ function autopilot(state, stepSize) {
  */
 export function stageShot(name, world) {
   world.reset();
-  if (name !== 'play' && name !== 'end') {
+  if (name !== 'play' && name !== 'play2' && name !== 'end') {
     for (let index = 0; index < START_SECONDS / STEP; index += 1) world.step(STEP, null, null, true);
     return { screen: SCREEN_TITLE, best: 0 };
   }
-  const limit = name === 'end' ? END_LIMIT_SECONDS : PLAY_SECONDS;
+  const limit = name === 'end' ? END_LIMIT_SECONDS : name === 'play2' ? PLAY2_SECONDS : PLAY_SECONDS;
   // The end scene's pilot is clumsy: it only looks one step ahead and ignores hazards,
   // so it is caught out once the eels speed up, as a hurried player is.
   const clumsy = name === 'end';
@@ -93,5 +94,9 @@ export function stageShot(name, world) {
     if (world.step(STEP, steer, null, false) & EVENT_OVER) break;
   }
   const over = world.state.lives === 0;
+  if (over) {
+    // Let the death flash fade and the burst settle, so the end panel sits on a calm sea.
+    for (let index = 0; index < 30; index += 1) world.step(STEP, null, null, true);
+  }
   return { screen: over ? SCREEN_OVER : SCREEN_PLAY, best: world.state.score };
 }
