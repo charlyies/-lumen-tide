@@ -30,6 +30,8 @@ export const KIND_MAGNET = 4;
 export const KIND_STAR = 5;
 export const KIND_DART = 6;
 export const KIND_SQUID = 7;
+/** Double-points power-up: orbs pay double while it lasts. */
+export const KIND_DOUBLE = 8;
 
 export const EVENT_HIT = 1;
 export const EVENT_ORB = 2;
@@ -53,6 +55,8 @@ export function createWorld(random) {
     invulnerable: 0,
     shield: 0,
     magnet: 0,
+    /** Double-points timer, in seconds. */
+    double: 0,
     /** Bell pulse phase, for the swimming animation. */
     pulse: 0,
     /** Facing: -1 left, 1 right (for the tentacle sway). */
@@ -115,6 +119,7 @@ export function createWorld(random) {
     player.invulnerable = 0;
     player.shield = 0;
     player.magnet = 0;
+    player.double = 0;
     player.pulse = 0;
     player.facing = 1;
     player.vx = 0;
@@ -311,7 +316,7 @@ export function createWorld(random) {
     if (item === null) return;
     const roll = random();
     item.active = true;
-    item.kind = roll < 0.4 ? KIND_SHIELD : roll < 0.75 ? KIND_MAGNET : KIND_STAR;
+    item.kind = roll < 0.35 ? KIND_SHIELD : roll < 0.65 ? KIND_MAGNET : roll < 0.85 ? KIND_STAR : KIND_DOUBLE;
     item.radius = POWERUP.radius;
     item.x = 60 + random() * (FIELD.width - 120);
     item.y = -30;
@@ -369,6 +374,9 @@ export function createWorld(random) {
     if (newLevel !== state.level) {
       state.level = newLevel;
       state.banner = { text: `LEVEL ${newLevel}`, sub: 'The tide quickens', timer: 1.8 };
+      const bonus = 50 * newLevel;
+      state.score += bonus;
+      popup(player.x, player.y - 44, `LEVEL BONUS +${bonus}`, '#7ef0ff', 24);
       events |= EVENT_LEVEL;
     }
 
@@ -376,6 +384,7 @@ export function createWorld(random) {
     player.pulse += dt * 6;
     if (player.invulnerable > 0) player.invulnerable = Math.max(0, player.invulnerable - dt);
     if (player.magnet > 0) player.magnet = Math.max(0, player.magnet - dt);
+    if (player.double > 0) player.double = Math.max(0, player.double - dt);
     if (state.shake > 0) state.shake = Math.max(0, state.shake - dt * 26);
     if (state.flash > 0) state.flash = Math.max(0, state.flash - dt * 2.2);
     if (state.banner !== null) {
@@ -553,7 +562,7 @@ export function createWorld(random) {
             popup(player.x, player.y - 44, `MAX COMBO x${COMBO.max}!`, '#ff9f1c', 28);
           }
           const base = item.gold ? ORB.goldPoints : item.pink ? ORB.pinkPoints : ORB.points;
-          const gained = base * state.combo;
+          const gained = base * state.combo * (player.double > 0 ? 2 : 1);
           state.score += gained;
           const color = item.gold ? '#ff9f1c' : item.pink ? '#ff6fb5' : '#ffd166';
           popup(item.x, item.y - 10, item.gold ? `GOLD +${gained}` : `+${gained}`, color, item.gold ? 26 : 20);
@@ -670,6 +679,10 @@ export function createWorld(random) {
             player.magnet = POWERUP.magnetSeconds;
             popup(item.x, item.y - 12, 'MAGNET!', '#c084fc', 22);
             burst(item.x, item.y, '#c084fc', 14, 190);
+          } else if (item.kind === KIND_DOUBLE) {
+            player.double = POWERUP.doubleSeconds;
+            popup(item.x, item.y - 12, 'DOUBLE! 2x points', '#ff5df2', 22);
+            burst(item.x, item.y, '#ff5df2', 14, 190);
           } else {
             // Starburst: clear every eel, squid and ink cloud on screen.
             for (const other of items) {

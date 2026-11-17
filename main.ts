@@ -5,10 +5,10 @@
 // /output/dossier.json, the summary the judge reads, with the vendored make.fun library.
 //
 // Lumen Tide: you are a glowing jellyfish in a bioluminescent deep sea. Catch the golden
-// plankton orbs and chain them into combos up to x8 (FEVER from x6); dodge the void eels,
-// dart eels, stalker squid and ink clouds; grab shield, magnet and starburst power-ups.
-// Plankton blooms drop three orbs at once and a Gold Rush floods the tide with gold every
-// 25s. Three lives, rising levels, a title screen, pause, game over and restart,
+// plankton orbs and chain them into combos up to x10 (FEVER from x7); dodge the void eels,
+// dart eels, stalker squid and ink clouds; grab shield, magnet, starburst and double-points
+// power-ups. Plankton blooms drop three orbs at once and a Gold Rush floods the tide with gold every
+// 25s; every level-up pays a bonus. Three lives, rising levels, a title screen, pause, game over and restart,
 // synthesised WebAudio sound, and screenshot scenes staged by ?shot=start|play|end.
 //
 // Serve it locally with `node serve.ts`, then open http://localhost:8080.

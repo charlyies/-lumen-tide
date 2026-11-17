@@ -20,28 +20,28 @@ export const PLAYER = {
 export const LIVES = 3;
 
 /** Combo: collecting orbs within this many seconds of each other raises the multiplier.
- *  At x6 the combo turns FEVER: the badge turns red and orbs pay out at the fever rate. */
-export const COMBO = { window: 3.0, max: 8, feverAt: 6 };
+ *  At x7 the combo turns FEVER: the badge turns red and orbs pay out at the fever rate. */
+export const COMBO = { window: 3.5, max: 10, feverAt: 7 };
 
 export const ORB = {
   radius: 13,
   /** Drift speed of a fresh orb (it bobs and slowly sinks). */
   speed: 46,
   speedPerLevel: 4,
-  interval: 0.6,
+  interval: 0.5,
   intervalScale: 0.92,
   minInterval: 0.3,
   /** Base points; multiplied by the combo. */
   points: 10,
   /** Golden orbs are rare and worth much more. */
-  goldChance: 0.1,
+  goldChance: 0.12,
   goldPoints: 50,
   /** Pink prism orbs sit between the two: uncommon, worth 25. */
-  pinkChance: 0.13,
+  pinkChance: 0.16,
   pinkPoints: 25,
   /** Plankton bloom: this chance of an orb spawn drops a 3-orb arc instead of one orb,
    *  so the sea sometimes offers a whole mouthful at once. */
-  bloomChance: 0.25,
+  bloomChance: 0.35,
 };
 
 export const EEL = {
@@ -118,6 +118,8 @@ export const POWERUP = {
   interval: 11,
   magnetSeconds: 8,
   shieldHits: 1,
+  /** Double-points window, in seconds. */
+  doubleSeconds: 10,
 };
 
 export const LEVEL = { orbsPerLevel: 15, max: 12 };
@@ -154,6 +156,7 @@ export const PALETTE = {
   shield: '#8affc1',
   magnet: '#c084fc',
   star: '#ffe66d',
+  double: '#ff5df2',
   panel: 'rgba(6, 24, 44, 0.92)',
   panelEdge: '#1d5a80',
   text: '#eaf6ff',

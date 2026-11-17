@@ -4,7 +4,7 @@
 // deep sea: light rays from the surface, drifting bubbles, a pulsing jellyfish with
 // trailing tentacles, glowing orbs, serpentine void eels and ink clouds.
 import { COMBO, DART, EEL, FIELD, FONT, LIVES, PALETTE } from './config.js';
-import { KIND_DART, KIND_EEL, KIND_INK, KIND_MAGNET, KIND_ORB, KIND_SHIELD, KIND_SQUID, KIND_STAR } from './world.js';
+import { KIND_DART, KIND_DOUBLE, KIND_EEL, KIND_INK, KIND_MAGNET, KIND_ORB, KIND_SHIELD, KIND_SQUID, KIND_STAR } from './world.js';
 import { drawScenery } from './scenery.js';
 
 export const SCREEN_TITLE = 'title';
@@ -230,7 +230,7 @@ export function createRenderer(canvas) {
   }
 
   function drawPowerup(item) {
-    const colors = { [KIND_SHIELD]: PALETTE.shield, [KIND_MAGNET]: PALETTE.magnet, [KIND_STAR]: PALETTE.star };
+    const colors = { [KIND_SHIELD]: PALETTE.shield, [KIND_MAGNET]: PALETTE.magnet, [KIND_STAR]: PALETTE.star, [KIND_DOUBLE]: PALETTE.double };
     const color = colors[item.kind] || '#fff';
     const bob = Math.sin(item.t * 3 + item.phase) * 3;
     const y = item.y + bob;
@@ -248,7 +248,7 @@ export function createRenderer(canvas) {
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.font = `bold 20px ${FONT}`;
-    const glyph = item.kind === KIND_SHIELD ? '◉' : item.kind === KIND_MAGNET ? '◎' : '★';
+    const glyph = item.kind === KIND_SHIELD ? '◉' : item.kind === KIND_MAGNET ? '◎' : item.kind === KIND_DOUBLE ? '×2' : '★';
     context.fillText(glyph, item.x, y + 1);
     context.restore();
   }
@@ -471,6 +471,10 @@ export function createRenderer(canvas) {
     }
     if (state.player.magnet > 0) {
       text(`◎ Magnet ${Math.ceil(state.player.magnet)}s`, 26, ty, 20, PALETTE.magnet, 'left', '600');
+      ty += 26;
+    }
+    if (state.player.double > 0) {
+      text(`×2 Double ${Math.ceil(state.player.double)}s`, 26, ty, 20, PALETTE.double, 'left', '700');
     }
     void best;
   }
@@ -498,9 +502,9 @@ export function createRenderer(canvas) {
 
   const TITLE_LINES = [
     'You are a Lumen Jelly, glowing in the deep dark sea.',
-    'Catch orbs — gold is 50, pink prisms 25. Combos to x8.',
+    'Catch orbs — gold is 50, pink prisms 25. Combos to x10.',
     'Dodge void eels, dart eels (Level 2), squid (Level 3).',
-    'Gold Rush floods gold every 25s. Shields, magnets, stars.',
+    'Gold Rush floods gold every 25s. Shields, magnets, stars, doubles.',
     'Move with mouse, WASD or arrows. Three lives.',
     '',
   ];
