@@ -3,7 +3,7 @@
 // nearest orb while steering clear of eels and ink, so the frame is what a short game
 // really looks like and the same seed always gives the same frame.
 import { FIELD, STEP } from './config.js';
-import { EVENT_OVER, KIND_DART, KIND_EEL, KIND_INK, KIND_ORB } from './world.js';
+import { EVENT_OVER, KIND_DART, KIND_EEL, KIND_INK, KIND_ORB, KIND_SQUID } from './world.js';
 import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
 
 const START_SECONDS = 4;
@@ -23,8 +23,8 @@ function scoreMove(state, dx, dy) {
     const d = Math.hypot(item.x - nx, item.y - ny);
     if (item.kind === KIND_ORB) {
       score += Math.max(0, 420 - d) * (item.gold ? 2 : item.pink ? 1.5 : 1);
-    } else if (item.kind === KIND_EEL || item.kind === KIND_INK || item.kind === KIND_DART) {
-      const danger = item.kind === KIND_EEL ? 150 : item.kind === KIND_DART ? 130 : 110;
+    } else if (item.kind === KIND_EEL || item.kind === KIND_INK || item.kind === KIND_DART || item.kind === KIND_SQUID) {
+      const danger = item.kind === KIND_EEL ? 150 : item.kind === KIND_DART ? 130 : item.kind === KIND_SQUID ? 150 : 110;
       if (d < danger) score -= (danger - d) * 14;
     } else {
       score += Math.max(0, 300 - d) * 0.6;

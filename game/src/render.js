@@ -4,7 +4,7 @@
 // deep sea: light rays from the surface, drifting bubbles, a pulsing jellyfish with
 // trailing tentacles, glowing orbs, serpentine void eels and ink clouds.
 import { COMBO, DART, EEL, FIELD, FONT, LIVES, PALETTE } from './config.js';
-import { KIND_DART, KIND_EEL, KIND_INK, KIND_MAGNET, KIND_ORB, KIND_SHIELD, KIND_STAR } from './world.js';
+import { KIND_DART, KIND_EEL, KIND_INK, KIND_MAGNET, KIND_ORB, KIND_SHIELD, KIND_SQUID, KIND_STAR } from './world.js';
 import { drawScenery } from './scenery.js';
 
 export const SCREEN_TITLE = 'title';
@@ -156,6 +156,48 @@ export function createRenderer(canvas) {
     context.lineTo(item.x - dir * 22, item.y - EEL.headRadius - 12);
     context.lineTo(item.x - dir * 14, item.y - 2);
     context.closePath();
+    context.fill();
+    context.restore();
+  }
+
+  function drawSquid(item) {
+    const wobble = Math.sin(item.t * 2.4 + item.phase) * 3;
+    context.save();
+    // Trailing tentacles.
+    context.strokeStyle = PALETTE.squidGlow;
+    context.globalAlpha = 0.8;
+    context.lineWidth = 3;
+    context.lineCap = 'round';
+    for (let t = -1; t <= 1; t += 1) {
+      context.beginPath();
+      context.moveTo(item.x + t * 8, item.y + 8);
+      context.quadraticCurveTo(item.x + t * 12 + wobble, item.y + 22, item.x + t * 9 - wobble, item.y + 34);
+      context.stroke();
+    }
+    context.globalAlpha = 1;
+    // Body: glowing purple dome with a pale belly.
+    context.shadowColor = PALETTE.squid;
+    context.shadowBlur = 18;
+    context.fillStyle = PALETTE.squid;
+    context.beginPath();
+    context.ellipse(item.x, item.y, item.radius, item.radius * 0.85, 0, Math.PI, 0);
+    context.closePath();
+    context.fill();
+    context.shadowBlur = 0;
+    context.fillStyle = 'rgba(196, 181, 253, 0.5)';
+    context.beginPath();
+    context.ellipse(item.x, item.y + 4, item.radius * 0.55, item.radius * 0.4, 0, 0, Math.PI * 2);
+    context.fill();
+    // Big yellow eyes, always watching the jelly.
+    context.fillStyle = '#fff';
+    context.beginPath();
+    context.arc(item.x - 7, item.y - 4, 4.4, 0, Math.PI * 2);
+    context.arc(item.x + 7, item.y - 4, 4.4, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = '#1e1033';
+    context.beginPath();
+    context.arc(item.x - 7, item.y - 4, 2.2, 0, Math.PI * 2);
+    context.arc(item.x + 7, item.y - 4, 2.2, 0, Math.PI * 2);
     context.fill();
     context.restore();
   }
@@ -365,6 +407,7 @@ export function createRenderer(canvas) {
       if (item.kind === KIND_ORB) drawOrb(item);
       else if (item.kind === KIND_EEL) drawEel(item);
       else if (item.kind === KIND_DART) drawDart(item);
+      else if (item.kind === KIND_SQUID) drawSquid(item);
       else if (item.kind === KIND_INK) drawInk(item);
       else drawPowerup(item);
     }
@@ -384,22 +427,23 @@ export function createRenderer(canvas) {
     context.fill();
     text(scoreLabel(state.score), 26, 18, 30, PALETTE.text, 'left', '700');
     text(levelLabel(state.level), FIELD.width / 2, 18, 30, PALETTE.text, 'center', '700');
-    // Combo badge.
+    // Combo badge: x6+ is FEVER, in red; the bar shrinks as the combo window runs out.
     if (state.combo >= 2) {
       const cx = FIELD.width / 2;
       const pulse = 1 + Math.sin(state.elapsed * 8) * 0.05;
+      const fever = state.combo >= COMBO.feverAt;
       context.save();
       context.translate(cx, 62);
       context.scale(pulse, pulse);
-      context.fillStyle = state.combo >= 4 ? '#ff9f1c' : '#ffd166';
+      context.fillStyle = fever ? '#ff6f61' : state.combo >= 4 ? '#ff9f1c' : '#ffd166';
       context.font = `700 24px ${FONT}`;
       context.textAlign = 'center';
-      context.fillText(comboLabel(state.combo), 0, 0);
+      context.fillText(fever ? `FEVER x${state.combo}` : comboLabel(state.combo), 0, 0);
       // Combo timer: the bar shrinks as the combo window runs out.
       const frac = Math.max(0, state.comboTimer / COMBO.window);
       context.fillStyle = 'rgba(255,255,255,0.25)';
       context.fillRect(-40, 32, 80, 5);
-      context.fillStyle = state.combo >= 4 ? '#ff9f1c' : '#ffd166';
+      context.fillStyle = fever ? '#ff6f61' : state.combo >= 4 ? '#ff9f1c' : '#ffd166';
       context.fillRect(-40, 32, 80 * frac, 5);
       context.restore();
     }
@@ -417,6 +461,10 @@ export function createRenderer(canvas) {
     }
     // Active power-up timers.
     let ty = 56;
+    if (state.rushTime > 0) {
+      text(`★ GOLD RUSH ${Math.ceil(state.rushTime)}s`, 26, ty, 20, '#ff9f1c', 'left', '700');
+      ty += 26;
+    }
     if (state.player.shield > 0) {
       text('◉ Shield ready', 26, ty, 20, PALETTE.shield, 'left', '600');
       ty += 26;
@@ -450,9 +498,10 @@ export function createRenderer(canvas) {
 
   const TITLE_LINES = [
     'You are a Lumen Jelly, glowing in the deep dark sea.',
-    'Catch plankton orbs — gold is 50, pink prisms are 25. Chain combos up to x5.',
-    'Dodge void eels, dart eels from Level 2, and ink clouds. Three lives.',
-    'Grab shields, magnets and starbursts. Move with mouse, WASD or arrows.',
+    'Catch orbs — gold is 50, pink prisms 25. Combos to x8.',
+    'Dodge void eels, dart eels (Level 2), squid (Level 3).',
+    'Gold Rush floods gold every 25s. Shields, magnets, stars.',
+    'Move with mouse, WASD or arrows. Three lives.',
     '',
   ];
   const PAUSED_LINES = ['The tide is waiting for you.'];
@@ -466,7 +515,7 @@ export function createRenderer(canvas) {
     context.setTransform(view.scale, 0, 0, view.scale, view.x, view.y);
     drawField(state);
     if (screen === SCREEN_TITLE) {
-      TITLE_LINES[4] = bestLabel(best);
+      TITLE_LINES[TITLE_LINES.length - 1] = bestLabel(best);
       drawPanel('LUMEN TIDE', TITLE_LINES, 'Press Space or click to dive in', PALETTE.player);
     } else if (screen === SCREEN_PAUSED) {
       drawHud(state, best);

@@ -6,10 +6,13 @@
 
 **Lumen Tide** — a bioluminescent deep-sea arcade game. You are a Lumen Jelly, a glowing
 jellyfish drifting through the dark deep sea. Catch the plankton orbs and chain them
-into combos up to **x5**: plain orbs are 10, rare **gold** orbs are 50, and **pink prism**
-orbs are 25 — all multiplied by your combo. Dodge the void eels that swim in sine waves,
-the **dart eels** that streak across from Level 2, and the drifting ink clouds. Three
-lives, rising levels, and three power-ups: a **shield bubble** (one free hit),
+into combos up to **x8** — at x6 the combo turns **FEVER** and the badge burns red:
+plain orbs are 10, rare **gold** orbs are 50, and **pink prism** orbs are 25 — all
+multiplied by your combo. Orbs sometimes arrive as a **plankton bloom**, a whole arc
+of three at once. Every 25 seconds a **Gold Rush** floods the tide with gold orbs.
+Dodge the void eels that swim in sine waves, the **dart eels** that streak across from
+Level 2, the **stalker squid** that hunts you from Level 3, and the drifting ink clouds.
+Three lives, rising levels, and three power-ups: a **shield bubble** (one free hit),
 a **magnet** (orbs fly to you for 8s), and a **starburst** (clears every enemy on screen).
 A glowing trail follows you, score popups float up from every catch, and level banners
 announce the quickening tide.

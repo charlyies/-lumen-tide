@@ -18,6 +18,8 @@ import {
   POOL_SIZE,
   POPUP_COUNT,
   POWERUP,
+  RUSH,
+  SQUID,
 } from './config.js';
 
 export const KIND_ORB = 0;
@@ -27,6 +29,7 @@ export const KIND_SHIELD = 3;
 export const KIND_MAGNET = 4;
 export const KIND_STAR = 5;
 export const KIND_DART = 6;
+export const KIND_SQUID = 7;
 
 export const EVENT_HIT = 1;
 export const EVENT_ORB = 2;
@@ -63,6 +66,7 @@ export function createWorld(random) {
     items.push({
       active: false, kind: KIND_ORB, x: 0, y: 0, radius: 0, speed: 0,
       phase: 0, gold: false, pink: false, segments: null, baseX: 0, t: 0, drift: 0,
+      vx: 0, vy: 0,
     });
   }
   // Ambient bubbles and motes: pure decoration, seeded once.
@@ -92,7 +96,9 @@ export function createWorld(random) {
     score: 0, lives: LIVES, level: 1,
     orbsCollected: 0, combo: 0, comboTimer: 0, bestCombo: 0,
     elapsed: 0, orbTimer: 0.4, eelTimer: 2.2, inkTimer: 5, powerTimer: POWERUP.interval,
-    dartTimer: DART.interval,
+    dartTimer: DART.interval, squidTimer: SQUID.interval,
+    /** Gold Rush: rushTimer counts down to the next rush, rushTime is the rush left. */
+    rushTimer: RUSH.interval, rushTime: 0,
     /** Screen shake on a hit, decays to zero. */
     shake: 0,
     /** Red edge flash on a hit, 1 to 0. */
@@ -129,6 +135,9 @@ export function createWorld(random) {
     state.inkTimer = 5;
     state.powerTimer = POWERUP.interval;
     state.dartTimer = DART.interval;
+    state.squidTimer = SQUID.interval;
+    state.rushTimer = RUSH.interval;
+    state.rushTime = 0;
     state.shake = 0;
     state.flash = 0;
     state.banner = null;
@@ -182,21 +191,36 @@ export function createWorld(random) {
     }
   }
 
-  function spawnOrb() {
+  /** One orb at (x, y); the roll decides gold / pink / plain, with the rush boosting
+   *  the rich kinds while it lasts. */
+  function spawnOrbAt(x, y) {
     const item = freeItem();
     if (item === null) return;
     item.active = true;
     item.kind = KIND_ORB;
+    const rush = state.rushTime > 0;
+    const goldChance = Math.min(0.35, ORB.goldChance * (rush ? RUSH.goldMult : 1));
+    const pinkChance = Math.min(0.3, ORB.pinkChance * (rush ? RUSH.pinkMult : 1));
     const roll = random();
-    item.gold = roll < ORB.goldChance;
-    item.pink = !item.gold && roll < ORB.goldChance + ORB.pinkChance;
+    item.gold = roll < goldChance;
+    item.pink = !item.gold && roll < goldChance + pinkChance;
     item.radius = ORB.radius * (item.gold ? 1.25 : item.pink ? 1.1 : 1);
-    item.x = 40 + random() * (FIELD.width - 80);
-    item.y = -24;
+    item.x = x;
+    item.y = y;
     item.speed = ORB.speed + ORB.speedPerLevel * (state.level - 1) + random() * 24;
     item.phase = random() * Math.PI * 2;
     item.drift = 24 + random() * 30;
     item.t = 0;
+  }
+
+  function spawnOrb() {
+    const x = 40 + random() * (FIELD.width - 80);
+    spawnOrbAt(x, -24);
+    // Plankton bloom: sometimes the spawn is a whole arc of three orbs.
+    if (random() < ORB.bloomChance) {
+      spawnOrbAt(Math.max(40, Math.min(FIELD.width - 40, x - 52)), -30);
+      spawnOrbAt(Math.max(40, Math.min(FIELD.width - 40, x + 52)), -30);
+    }
   }
 
   function spawnEel() {
@@ -260,6 +284,28 @@ export function createWorld(random) {
     }
   }
 
+  /** A stalker squid: slow, homing, from level 3 up. It enters from a random edge
+   *  and drifts toward the jelly, so standing still gets punished. */
+  function spawnSquid() {
+    const item = freeItem();
+    if (item === null) return;
+    const edge = Math.floor(random() * 4);
+    item.active = true;
+    item.kind = KIND_SQUID;
+    item.gold = false;
+    item.pink = false;
+    item.radius = SQUID.radius;
+    if (edge === 0) { item.x = random() * FIELD.width; item.y = -40; }
+    else if (edge === 1) { item.x = random() * FIELD.width; item.y = FIELD.height + 40; }
+    else if (edge === 2) { item.x = -40; item.y = random() * FIELD.height; }
+    else { item.x = FIELD.width + 40; item.y = random() * FIELD.height; }
+    item.speed = SQUID.speed + SQUID.speedPerLevel * (state.level - 1);
+    item.phase = random() * Math.PI * 2;
+    item.t = 0;
+    item.vx = 0;
+    item.vy = 0;
+  }
+
   function spawnPowerup() {
     const item = freeItem();
     if (item === null) return;
@@ -288,6 +334,10 @@ export function createWorld(random) {
 
   function dartInterval() {
     return Math.max(DART.minInterval, DART.interval * DART.intervalScale ** (state.level - 1));
+  }
+
+  function squidInterval() {
+    return Math.max(SQUID.minInterval, SQUID.interval * SQUID.intervalScale ** (state.level - 1));
   }
 
   function takeHit() {
@@ -409,6 +459,26 @@ export function createWorld(random) {
         state.dartTimer += dartInterval();
       }
     }
+    if (state.level >= SQUID.unlockLevel) {
+      state.squidTimer -= dt;
+      if (state.squidTimer <= 0) {
+        spawnSquid();
+        state.squidTimer += squidInterval();
+      }
+    }
+    // Gold Rush: a timed window where rich orbs flood in.
+    if (!harmless) {
+      if (state.rushTime > 0) {
+        state.rushTime -= dt;
+      } else {
+        state.rushTimer -= dt;
+        if (state.rushTimer <= 0) {
+          state.rushTime = RUSH.duration;
+          state.rushTimer = RUSH.interval;
+          state.banner = { text: 'GOLD RUSH!', sub: 'Gold orbs flood the tide', timer: 1.8 };
+        }
+      }
+    }
 
     // --- ambient drift ---
     for (const a of ambient) {
@@ -472,9 +542,16 @@ export function createWorld(random) {
         if (circleHit(item.x, item.y, item.radius, player.x, player.y, player.radius * 0.9)) {
           item.active = false;
           state.orbsCollected += 1;
+          const prevCombo = state.combo;
           state.combo = Math.min(COMBO.max, state.combo + 1);
           state.comboTimer = COMBO.window;
           if (state.combo > state.bestCombo) state.bestCombo = state.combo;
+          // FEVER milestones: crossing x6 and the x8 cap get their own shout.
+          if (prevCombo < COMBO.feverAt && state.combo >= COMBO.feverAt) {
+            popup(player.x, player.y - 44, `FEVER x${state.combo}!`, '#ff6f61', 26);
+          } else if (prevCombo < COMBO.max && state.combo === COMBO.max) {
+            popup(player.x, player.y - 44, `MAX COMBO x${COMBO.max}!`, '#ff9f1c', 28);
+          }
           const base = item.gold ? ORB.goldPoints : item.pink ? ORB.pinkPoints : ORB.points;
           const gained = base * state.combo;
           state.score += gained;
@@ -533,6 +610,31 @@ export function createWorld(random) {
             break;
           }
         }
+      } else if (item.kind === KIND_SQUID) {
+        // Stalker squid: steers toward the jelly, slowly, with a wobble.
+        const dx = player.x - item.x;
+        const dy = player.y - item.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const wantX = (dx / dist) * item.speed;
+        const wantY = (dy / dist) * item.speed;
+        const steerRate = 1.6 * dt;
+        item.vx += (wantX - item.vx) * Math.min(1, steerRate);
+        item.vy += (wantY - item.vy) * Math.min(1, steerRate);
+        item.x += item.vx * dt + Math.sin(item.t * 2.4 + item.phase) * 10 * dt;
+        item.y += item.vy * dt + Math.cos(item.t * 2.1 + item.phase) * 10 * dt;
+        if (item.x < -120 || item.x > FIELD.width + 120 || item.y < -120 || item.y > FIELD.height + 120) {
+          item.active = false;
+          continue;
+        }
+        if (harmless || player.invulnerable > 0) continue;
+        if (circleHit(item.x, item.y, SQUID.radius, player.x, player.y, player.radius * 0.85)) {
+          item.active = false;
+          events |= EVENT_HIT;
+          if (takeHit()) {
+            events |= EVENT_OVER;
+            break;
+          }
+        }
       } else if (item.kind === KIND_INK) {
         item.y += item.speed * dt;
         item.x += Math.sin(item.t * 1.4 + item.phase) * item.drift * dt;
@@ -569,9 +671,9 @@ export function createWorld(random) {
             popup(item.x, item.y - 12, 'MAGNET!', '#c084fc', 22);
             burst(item.x, item.y, '#c084fc', 14, 190);
           } else {
-            // Starburst: clear every eel and ink cloud on screen.
+            // Starburst: clear every eel, squid and ink cloud on screen.
             for (const other of items) {
-              if (other.active && (other.kind === KIND_EEL || other.kind === KIND_INK || other.kind === KIND_DART)) {
+              if (other.active && (other.kind === KIND_EEL || other.kind === KIND_INK || other.kind === KIND_DART || other.kind === KIND_SQUID)) {
                 burst(other.x, other.y, '#ffe66d', 8, 160);
                 other.active = false;
               }

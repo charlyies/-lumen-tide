@@ -19,15 +19,16 @@ export const PLAYER = {
 
 export const LIVES = 3;
 
-/** Combo: collecting orbs within this many seconds of each other raises the multiplier. */
-export const COMBO = { window: 2.5, max: 5 };
+/** Combo: collecting orbs within this many seconds of each other raises the multiplier.
+ *  At x6 the combo turns FEVER: the badge turns red and orbs pay out at the fever rate. */
+export const COMBO = { window: 3.0, max: 8, feverAt: 6 };
 
 export const ORB = {
   radius: 13,
   /** Drift speed of a fresh orb (it bobs and slowly sinks). */
   speed: 46,
   speedPerLevel: 4,
-  interval: 0.68,
+  interval: 0.6,
   intervalScale: 0.92,
   minInterval: 0.3,
   /** Base points; multiplied by the combo. */
@@ -38,6 +39,9 @@ export const ORB = {
   /** Pink prism orbs sit between the two: uncommon, worth 25. */
   pinkChance: 0.13,
   pinkPoints: 25,
+  /** Plankton bloom: this chance of an orb spawn drops a 3-orb arc instead of one orb,
+   *  so the sea sometimes offers a whole mouthful at once. */
+  bloomChance: 0.25,
 };
 
 export const EEL = {
@@ -79,6 +83,33 @@ export const DART = {
   unlockLevel: 2,
 };
 
+/** Gold Rush: every so often the tide turns golden — for a few seconds gold orbs
+ *  are three times as likely and pink prisms half again, so a bold player can
+ *  cash in a whole combo at once. */
+export const RUSH = {
+  /** Seconds of normal play between rushes. */
+  interval: 25,
+  /** How long a rush lasts. */
+  duration: 6,
+  goldMult: 3,
+  pinkMult: 1.5,
+};
+
+/** Stalker squid: a slow hunter that appears from level 3 and drifts toward the
+ *  jelly, telegraphed by its purple glow and big eyes. Slower than the player, so
+ *  it punishes standing still, not swimming. */
+export const SQUID = {
+  radius: 18,
+  speed: 112,
+  speedPerLevel: 8,
+  /** Seconds between squid spawns once they unlock. */
+  interval: 9,
+  intervalScale: 0.94,
+  minInterval: 5,
+  /** First level at which squids appear. */
+  unlockLevel: 3,
+};
+
 /** Power-ups: shield, magnet, starburst. */
 export const POWERUP = {
   radius: 16,
@@ -92,9 +123,9 @@ export const POWERUP = {
 export const LEVEL = { orbsPerLevel: 15, max: 12 };
 
 /** How many entities can exist at once; pools are allocated once, at boot. */
-export const POOL_SIZE = 128;
+export const POOL_SIZE = 144;
 /** Ambient bubbles and drifting motes for the backdrop. */
-export const AMBIENT_COUNT = 96;
+export const AMBIENT_COUNT = 128;
 /** Burst particles on collection, plus the jelly's lumen trail. */
 export const PARTICLE_COUNT = 168;
 /** Floating score popups ("+20", "GOLD +250", "LEVEL 3"). */
@@ -114,6 +145,9 @@ export const PALETTE = {
   orbPink: '#ff6fb5',
   dart: '#ff2e63',
   dartGlow: '#ff7a9e',
+  squid: '#7c3aed',
+  squidGlow: '#a78bfa',
+  squidEye: '#fde68a',
   eel: '#1a1030',
   eelEye: '#ff4d6d',
   ink: '#3b2a5e',

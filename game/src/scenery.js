@@ -8,7 +8,9 @@ import { FIELD, PALETTE } from './config.js';
 /** Distant jellyfish silhouettes: fixed lanes, drifting slowly on the clock. */
 const FAR_JELLIES = [
   { lane: 0.18, size: 64, speed: 0.021, phase: 0.4 },
+  { lane: 0.35, size: 72, speed: 0.017, phase: 1.3 },
   { lane: 0.52, size: 88, speed: 0.014, phase: 2.1 },
+  { lane: 0.68, size: 58, speed: 0.025, phase: 3.2 },
   { lane: 0.84, size: 56, speed: 0.027, phase: 4.4 },
 ];
 
@@ -95,7 +97,7 @@ export function drawScenery(context, state) {
   }
   context.globalAlpha = 1;
 
-  // Rocky seabed with glowing anemones.
+  // Rocky seabed with glowing anemones and dim coral fans.
   context.fillStyle = '#03101f';
   for (const rock of ROCKS) {
     const x = rock.x * FIELD.width;
@@ -106,6 +108,28 @@ export function drawScenery(context, state) {
     context.closePath();
     context.fill();
   }
+  // Coral fans: thin branching strokes rising from the rocks, barely lit.
+  context.save();
+  context.strokeStyle = 'rgba(124, 58, 237, 0.4)';
+  context.lineWidth = 3;
+  context.lineCap = 'round';
+  for (const coral of [
+    { x: 0.12, h: 34 }, { x: 0.31, h: 44 }, { x: 0.52, h: 30 },
+    { x: 0.71, h: 40 }, { x: 0.9, h: 36 },
+  ]) {
+    const x = coral.x * FIELD.width;
+    const y = FIELD.height - 4;
+    const sway = Math.sin(elapsed * 0.7 + coral.x * 30) * 4;
+    context.beginPath();
+    context.moveTo(x, y);
+    context.quadraticCurveTo(x + sway, y - coral.h * 0.6, x + sway * 1.6, y - coral.h);
+    context.moveTo(x, y - coral.h * 0.4);
+    context.quadraticCurveTo(x - 10 + sway, y - coral.h * 0.75, x - 14 + sway, y - coral.h * 0.95);
+    context.moveTo(x, y - coral.h * 0.4);
+    context.quadraticCurveTo(x + 10 + sway, y - coral.h * 0.7, x + 15 + sway, y - coral.h * 0.9);
+    context.stroke();
+  }
+  context.restore();
   for (const anemone of ANEMONES) {
     const x = anemone.x * FIELD.width;
     const y = FIELD.height - 8;
